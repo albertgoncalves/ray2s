@@ -11,7 +11,6 @@ FLAGS = \
 	-g \
 	-Iraylib/include \
 	-lGL \
-	-lm \
 	-lraylib \
 	-Lraylib/lib \
 	-march=native \
