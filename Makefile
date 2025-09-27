@@ -1,5 +1,6 @@
 FLAGS = \
 	-ferror-limit=1 \
+	-fsanitize=address \
 	-fsanitize=bounds \
 	-fsanitize=float-divide-by-zero \
 	-fsanitize=implicit-conversion \
