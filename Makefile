@@ -19,7 +19,6 @@ FLAGS = \
 	-Weverything \
 	-Wno-declaration-after-statement \
 	-Wno-padded \
-	-Wno-pre-c11-compat \
 	-Wno-unsafe-buffer-usage
 
 .PHONY: all run clean

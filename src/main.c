@@ -1,12 +1,8 @@
 #include "raylib.h"
 
 #include <assert.h>
-#include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>
-
-#define STATIC_ASSERT(condition) _Static_assert(condition, "!(" #condition ")")
 
 typedef uint8_t  u8;
 typedef uint32_t u32;
@@ -45,7 +41,6 @@ typedef struct {
 
 #define ROWS 4
 #define COLS ROWS
-STATIC_ASSERT(ROWS == COLS);
 
 #define RECT_X (SCREEN_X / ROWS)
 #define RECT_Y RECT_X
