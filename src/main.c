@@ -29,11 +29,12 @@ typedef enum {
 typedef struct {
     Vector2u from, to;
     u8       k;
+    u8       sequence;
 } Transition;
 
 #define BACKGROUND RAYWHITE
 
-#define SCREEN_X 720
+#define SCREEN_X 480
 #define SCREEN_Y SCREEN_X
 
 #define ROWS 4
@@ -45,13 +46,13 @@ STATIC_ASSERT(ROWS == COLS);
 
 #define RECT_BORDER 0.05f
 
-#define TEXT_Y       50
-#define TEXT_SPACING 5
+#define TEXT_Y       40
+#define TEXT_SPACING (TEXT_Y / 10)
 
 #define FPS_X 10.0f
-#define FPS_Y 10.0f
+#define FPS_Y FPS_X
 
-#define ANIMATION_STEP 0.1f
+#define ANIMATION_STEP (1.0f / 3.0f)
 
 static u8   BOARD[ROWS][COLS] = {0};
 static Font FONT;
@@ -105,7 +106,7 @@ static Color COLORS[LEN_TEXTS] = {
     // DARKBROWN,
 };
 
-#define CAP_TRANSITIONS (1 << 7)
+#define CAP_TRANSITIONS (1 << 6)
 static Transition TRANSITIONS[CAP_TRANSITIONS];
 static u32        LEN_TRANSITIONS = 0;
 
@@ -137,19 +138,19 @@ static Dir input_to_move(void) {
     return dir;
 }
 
-static void push_transition(const Vector2u from, const Vector2u to, const u8 k) {
+static void push_transition(const Vector2u from, const Vector2u to, const u8 k, const u8 sequence) {
     assert(LEN_TRANSITIONS < CAP_TRANSITIONS);
-    TRANSITIONS[LEN_TRANSITIONS++] = (Transition){from, to, k};
+    TRANSITIONS[LEN_TRANSITIONS++] = (Transition){from, to, k, sequence};
 }
 
-static void slide_row(u8 row[COLS]) {
+static void slide_row(u8 row[COLS], u8 sequence) {
     u8 j = 0;
 
     for (; j < COLS; ++j) {
         if (row[j] == 0) {
             break;
         }
-        push_transition((Vector2u){j, 0}, (Vector2u){j, 0}, row[j]);
+        push_transition((Vector2u){j, 0}, (Vector2u){j, 0}, row[j], sequence);
     }
 
     for (u8 i = j + 1; i < COLS; ++i) {
@@ -160,11 +161,11 @@ static void slide_row(u8 row[COLS]) {
         }
 
         if (row[j] != 0) {
-            push_transition((Vector2u){i, 0}, (Vector2u){i, 0}, row[i]);
+            push_transition((Vector2u){i, 0}, (Vector2u){i, 0}, row[i], sequence);
             continue;
         }
 
-        push_transition((Vector2u){i, 0}, (Vector2u){j, 0}, row[i]);
+        push_transition((Vector2u){i, 0}, (Vector2u){j, 0}, row[i], sequence);
 
         row[j++] = row[i];
         row[i] = 0;
@@ -173,38 +174,30 @@ static void slide_row(u8 row[COLS]) {
     }
 }
 
-static bool promote_row(u8 row[COLS]) {
-    bool any_change = false;
-
-    for (u8 i = 1; i < COLS; ++i) {
+static void promote_row(u8 row[COLS], u8 sequence) {
+    for (u8 i = 0; i < COLS; ++i) {
         if (row[i] == 0) {
             break;
         }
 
-        // TODO: Once we correctly batch the transition, we'll need to push this transition.
-        // push_transition((Vector2u){i, 0}, (Vector2u){i, 0}, row[i]);
-
-        if (row[i - 1] != row[i]) {
+        if ((i == 0) || (row[i - 1] != row[i])) {
+            push_transition((Vector2u){i, 0}, (Vector2u){i, 0}, row[i], sequence);
             continue;
         }
 
-        // TODO: Once we correctly batch the transition, we'll need to push this transition.
-        // push_transition((Vector2u){i, 0}, (Vector2u){i - 1, 0}, row[i - 1]);
+        push_transition((Vector2u){i, 0}, (Vector2u){i - 1, 0}, row[i - 1], sequence);
 
         ++row[i - 1];
         row[i] = 0;
 
-        any_change = true;
         CAN_INJECT = true;
     }
-
-    return any_change;
 }
 
 static void move_row(u8 row[COLS]) {
-    do {
-        slide_row(row);
-    } while (promote_row(row));
+    slide_row(row, 0);
+    promote_row(row, 1);
+    slide_row(row, 2);
 }
 
 static void move_right(void) {
@@ -363,6 +356,7 @@ i32 main(void) {
     inject_block();
 
     f32 t = 0.0f;
+    u8  sequence = 0;
 
     while (!WindowShouldClose()) {
         if (LEN_TRANSITIONS == 0) {
@@ -372,6 +366,7 @@ i32 main(void) {
             }
 
             const Dir dir = input_to_move();
+
             MOVES[dir]();
 
             if (LEN_TRANSITIONS != 0) {
@@ -399,6 +394,7 @@ i32 main(void) {
         }
 
         if (t <= 0.0f) {
+            sequence = 0;
             t += 1.0f;
         }
 
@@ -406,6 +402,9 @@ i32 main(void) {
         ClearBackground(BACKGROUND);
 
         for (u32 i = 0; i < LEN_TRANSITIONS; ++i) {
+            if (TRANSITIONS[i].sequence != sequence) {
+                continue;
+            }
             draw_transition(TRANSITIONS[i], 1.0f - t);
         }
 
@@ -415,7 +414,11 @@ i32 main(void) {
         t -= ANIMATION_STEP;
 
         if (t <= 0.0f) {
-            LEN_TRANSITIONS = 0;
+            if (++sequence < 3) {
+                t += 1.0f;
+            } else {
+                LEN_TRANSITIONS = 0;
+            }
         }
     }
 
