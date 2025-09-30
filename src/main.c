@@ -18,9 +18,9 @@ typedef enum {
     DIR_RIGHT,
     DIR_DOWN,
     DIR_UP,
-    DIR_NONE,
-    DIR_COUNT,
 } Dir;
+
+#define MOVES ((void (*[])(void)){move_left, move_right, move_down, move_up})
 
 typedef struct {
     Vector2u from, to;
@@ -115,9 +115,9 @@ static u32        LEN_TRANSITIONS = 0;
 static Block BLOCKS[CAP_BLOCKS];
 static u32   LEN_BLOCKS = 0;
 
-#define CAP_KEYS (1 << 6)
-static i32 KEYS[CAP_KEYS];
-static u32 LEN_KEYS;
+#define CAP_DIRS (1 << 6)
+static i32 DIRS[CAP_DIRS];
+static u32 LEN_DIRS;
 
 static void push_transition(const Vector2u from, const Vector2u to, const u8 k, const u8 sequence) {
     assert(LEN_TRANSITIONS < CAP_TRANSITIONS);
@@ -129,47 +129,43 @@ static void push_block(const Vector2u position, const u8 k, const u8 sequence) {
     BLOCKS[LEN_BLOCKS++] = (Block){position, k, sequence};
 }
 
-static void push_key(const i32 key) {
-    assert(LEN_KEYS < CAP_KEYS);
-    KEYS[LEN_KEYS++] = key;
+static void push_dir(const Dir dir) {
+    assert(LEN_DIRS < CAP_DIRS);
+    DIRS[LEN_DIRS++] = dir;
 }
 
-static i32 pop_key(void) {
-    assert(0 < LEN_KEYS);
-    return KEYS[--LEN_KEYS];
+static i32 pop_dir(void) {
+    assert(0 < LEN_DIRS);
+    return DIRS[--LEN_DIRS];
 }
 
 static void push_keys(void) {
     for (;;) {
-        i32 key = GetKeyPressed();
+        const i32 key = GetKeyPressed();
         if (key == 0) {
             break;
         }
-        push_key(key);
-    }
-}
 
-static Dir input_to_move(void) {
-    if (LEN_KEYS == 0) {
-        return DIR_NONE;
-    }
-
-    switch (pop_key()) {
-    case KEY_A: {
-        return DIR_LEFT;
-    }
-    case KEY_D: {
-        return DIR_RIGHT;
-    }
-    case KEY_S: {
-        return DIR_DOWN;
-    }
-    case KEY_W: {
-        return DIR_UP;
-    }
-    default: {
-        return DIR_NONE;
-    }
+        switch (key) {
+        case KEY_A: {
+            push_dir(DIR_LEFT);
+            break;
+        }
+        case KEY_D: {
+            push_dir(DIR_RIGHT);
+            break;
+        }
+        case KEY_S: {
+            push_dir(DIR_DOWN);
+            break;
+        }
+        case KEY_W: {
+            push_dir(DIR_UP);
+            break;
+        }
+        default: {
+        }
+        }
     }
 }
 
@@ -235,8 +231,8 @@ static void move_right(void) {
             row[COLS - (j + 1)] = BOARD[i][j];
         }
 
-        u32 prev_transition = LEN_TRANSITIONS;
-        u32 prev_block = LEN_BLOCKS;
+        const u32 prev_transition = LEN_TRANSITIONS;
+        const u32 prev_block = LEN_BLOCKS;
         move_row(row);
         for (u32 k = prev_transition; k < LEN_TRANSITIONS; ++k) {
             TRANSITIONS[k].from.x = COLS - (TRANSITIONS[k].from.x + 1);
@@ -257,8 +253,8 @@ static void move_right(void) {
 
 static void move_left(void) {
     for (u8 i = 0; i < ROWS; ++i) {
-        u32 prev_transition = LEN_TRANSITIONS;
-        u32 prev_block = LEN_BLOCKS;
+        const u32 prev_transition = LEN_TRANSITIONS;
+        const u32 prev_block = LEN_BLOCKS;
         move_row(BOARD[i]);
         for (u32 k = prev_transition; k < LEN_TRANSITIONS; ++k) {
             TRANSITIONS[k].from.y = i;
@@ -278,8 +274,8 @@ static void move_down(void) {
             col[ROWS - (i + 1)] = BOARD[i][j];
         }
 
-        u32 prev_transition = LEN_TRANSITIONS;
-        u32 prev_block = LEN_BLOCKS;
+        const u32 prev_transition = LEN_TRANSITIONS;
+        const u32 prev_block = LEN_BLOCKS;
         move_row(col);
         for (u32 k = prev_transition; k < LEN_TRANSITIONS; ++k) {
             TRANSITIONS[k].from.y = ROWS - (TRANSITIONS[k].from.x + 1);
@@ -306,8 +302,8 @@ static void move_up(void) {
             col[i] = BOARD[i][j];
         }
 
-        u32 prev_transition = LEN_TRANSITIONS;
-        u32 prev_block = LEN_BLOCKS;
+        const u32 prev_transition = LEN_TRANSITIONS;
+        const u32 prev_block = LEN_BLOCKS;
         move_row(col);
         for (u32 k = prev_transition; k < LEN_TRANSITIONS; ++k) {
             TRANSITIONS[k].from.y = TRANSITIONS[k].from.x;
@@ -326,10 +322,13 @@ static void move_up(void) {
     }
 }
 
-static void move_none(void) {
-}
+static void pop_move(void) {
+    if (LEN_DIRS == 0) {
+        return;
+    }
 
-static void (*MOVES[DIR_COUNT])(void) = {move_left, move_right, move_down, move_up, move_none};
+    MOVES[pop_dir()]();
+}
 
 static void draw_block(const Vector2 position, const u8 k) {
     DrawRectangleV(
@@ -337,10 +336,7 @@ static void draw_block(const Vector2 position, const u8 k) {
             position.x + (RECT_X * (RECT_BORDER / 2.0f)),
             position.y + (RECT_Y * (RECT_BORDER / 2.0f)),
         },
-        (Vector2){
-            (RECT_X * (1.0f - RECT_BORDER)),
-            (RECT_Y * (1.0f - RECT_BORDER)),
-        },
+        (Vector2){(RECT_X * (1.0f - RECT_BORDER)), (RECT_Y * (1.0f - RECT_BORDER))},
         COLORS[k - 1]);
     DrawTextEx(FONT,
                TEXTS[k - 1],
@@ -359,11 +355,12 @@ static f32 lerp(const f32 l, const f32 r, const f32 t) {
 
 static void draw_transition(const Transition transition, const f32 t) {
     // NOTE: See `https://blog.bruce-hill.com/6-useful-snippets`.
-    const Vector2 position = {
-        lerp((f32)transition.from.x * RECT_X, (f32)transition.to.x * RECT_X, t * t),
-        lerp((f32)transition.from.y * RECT_X, (f32)transition.to.y * RECT_X, t * t),
-    };
-    draw_block(position, transition.k);
+    draw_block(
+        (Vector2){
+            lerp((f32)transition.from.x * RECT_X, (f32)transition.to.x * RECT_X, t * t),
+            lerp((f32)transition.from.y * RECT_X, (f32)transition.to.y * RECT_X, t * t),
+        },
+        transition.k);
 }
 
 static void inject_block(void) {
@@ -415,9 +412,7 @@ i32 main(void) {
                 CAN_INJECT = false;
             }
 
-            const Dir dir = input_to_move();
-
-            MOVES[dir]();
+            pop_move();
 
             if (LEN_TRANSITIONS != 0) {
                 continue;
@@ -431,9 +426,7 @@ i32 main(void) {
                     if (BOARD[i][j] == 0) {
                         continue;
                     }
-
-                    const Vector2 position = {(f32)j * RECT_X, (f32)i * RECT_Y};
-                    draw_block(position, BOARD[i][j]);
+                    draw_block((Vector2){(f32)j * RECT_X, (f32)i * RECT_Y}, BOARD[i][j]);
                 }
             }
 
@@ -461,11 +454,9 @@ i32 main(void) {
             if (BLOCKS[i].sequence != sequence) {
                 continue;
             }
-            const Vector2 position = {
-                (f32)BLOCKS[i].position.x * RECT_X,
-                (f32)BLOCKS[i].position.y * RECT_Y,
-            };
-            draw_block(position, BLOCKS[i].k);
+            draw_block(
+                (Vector2){(f32)BLOCKS[i].position.x * RECT_X, (f32)BLOCKS[i].position.y * RECT_Y},
+                BLOCKS[i].k);
         }
 
         DrawFPS(FPS_X, FPS_Y);
