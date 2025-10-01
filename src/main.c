@@ -58,6 +58,7 @@ typedef struct {
 static u8   BOARD[ROWS][COLS] = {0};
 static Font FONT;
 static bool CAN_INJECT = false;
+static u8   NO_MOVE = 0;
 
 static const char* TEXTS[] = {
     "2",
@@ -116,7 +117,7 @@ static Block BLOCKS[CAP_BLOCKS];
 static u32   LEN_BLOCKS = 0;
 
 #define CAP_DIRS (1 << 6)
-static i32 DIRS[CAP_DIRS];
+static Dir DIRS[CAP_DIRS];
 static u32 LEN_DIRS;
 
 static void push_transition(const Vector2u from, const Vector2u to, const u8 k, const u8 sequence) {
@@ -134,7 +135,7 @@ static void push_dir(const Dir dir) {
     DIRS[LEN_DIRS++] = dir;
 }
 
-static i32 pop_dir(void) {
+static Dir pop_dir(void) {
     assert(0 < LEN_DIRS);
     return DIRS[--LEN_DIRS];
 }
@@ -327,7 +328,14 @@ static void pop_move(void) {
         return;
     }
 
-    MOVES[pop_dir()]();
+    Dir dir = pop_dir();
+    MOVES[dir]();
+
+    if (LEN_TRANSITIONS == 0) {
+        NO_MOVE |= (1u << dir);
+    } else {
+        NO_MOVE = 0;
+    }
 }
 
 static void draw_block(const Vector2 position, const u8 k) {
@@ -416,6 +424,12 @@ i32 main(void) {
 
             if (LEN_TRANSITIONS != 0) {
                 continue;
+            }
+
+            if (NO_MOVE ==
+                ((1u << DIR_LEFT) | (1u << DIR_RIGHT) | (1u << DIR_DOWN) | (1u << DIR_UP)))
+            {
+                break;
             }
 
             BeginDrawing();
