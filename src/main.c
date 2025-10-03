@@ -43,7 +43,7 @@ typedef struct {
 #define COLS ROWS
 
 #define RECT_X (SCREEN_X / ROWS)
-#define RECT_Y RECT_X
+#define RECT_Y (SCREEN_Y / COLS)
 
 #define RECT_BORDER 0.05f
 
