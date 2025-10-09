@@ -50,7 +50,7 @@ typedef struct {
 #define TEXT_Y       40
 #define TEXT_SPACING (TEXT_Y / 10)
 
-#define FPS_X 10.0f
+#define FPS_X 10
 #define FPS_Y FPS_X
 
 #define ANIMATION_STEP (1.0f / 4.0f)
