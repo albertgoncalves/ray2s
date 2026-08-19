@@ -125,10 +125,6 @@ static bool up(Cell cells[][COLS]) {
     for (u32 x = 0; x < COLS; ++x) {
         u32 end = 0;
 
-        if (cells[end][x].alive) {
-            ++end;
-        }
-
         for (u32 y = end; y < ROWS; ++y) {
             if (!cells[y][x].alive) {
                 continue;
@@ -138,12 +134,12 @@ static bool up(Cell cells[][COLS]) {
                 ++cells[end - 1][x].value;
                 cells[y][x].alive = false;
                 change = true;
-            } else if (y == end) {
-                ++end;
-            } else {
+            } else if (y != end) {
                 cells[end++][x] = cells[y][x];
                 cells[y][x].alive = false;
                 change = true;
+            } else {
+                ++end;
             }
         }
     }
@@ -157,10 +153,6 @@ static bool down(Cell cells[][COLS]) {
     for (u32 x = 0; x < COLS; ++x) {
         u32 end = ROWS;
 
-        if (cells[end - 1][x].alive) {
-            --end;
-        }
-
         for (u32 y = end; 0 < y; --y) {
             if (!cells[y - 1][x].alive) {
                 continue;
@@ -170,12 +162,12 @@ static bool down(Cell cells[][COLS]) {
                 ++cells[end][x].value;
                 cells[y - 1][x].alive = false;
                 change = true;
-            } else if (y == end) {
-                --end;
-            } else {
+            } else if (y != end) {
                 cells[--end][x] = cells[y - 1][x];
                 cells[y - 1][x].alive = false;
                 change = true;
+            } else {
+                --end;
             }
         }
     }
@@ -189,10 +181,6 @@ static bool left(Cell cells[][COLS]) {
     for (u32 y = 0; y < ROWS; ++y) {
         u32 end = 0;
 
-        if (cells[y][end].alive) {
-            ++end;
-        }
-
         for (u32 x = end; x < COLS; ++x) {
             if (!cells[y][x].alive) {
                 continue;
@@ -202,12 +190,12 @@ static bool left(Cell cells[][COLS]) {
                 ++cells[y][end - 1].value;
                 cells[y][x].alive = false;
                 change = true;
-            } else if (x == end) {
-                ++end;
-            } else {
+            } else if (x != end) {
                 cells[y][end++] = cells[y][x];
                 cells[y][x].alive = false;
                 change = true;
+            } else {
+                ++end;
             }
         }
     }
@@ -221,10 +209,6 @@ static bool right(Cell cells[][COLS]) {
     for (u32 y = 0; y < ROWS; ++y) {
         u32 end = COLS;
 
-        if (cells[y][end - 1].alive) {
-            --end;
-        }
-
         for (u32 x = end; 0 < x; --x) {
             if (!cells[y][x - 1].alive) {
                 continue;
@@ -234,12 +218,12 @@ static bool right(Cell cells[][COLS]) {
                 ++cells[y][end].value;
                 cells[y][x - 1].alive = false;
                 change = true;
-            } else if (x == end) {
-                --end;
-            } else {
+            } else if (x != end) {
                 cells[y][--end] = cells[y][x - 1];
                 cells[y][x - 1].alive = false;
                 change = true;
+            } else {
+                --end;
             }
         }
     }
