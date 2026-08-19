@@ -42,8 +42,8 @@ typedef struct {
 #define ROWS 4
 #define COLS ROWS
 
-#define RECT_X (SCREEN_X / ROWS)
-#define RECT_Y (SCREEN_Y / COLS)
+#define RECT_X (SCREEN_X / COLS)
+#define RECT_Y (SCREEN_Y / ROWS)
 
 #define RECT_BORDER 0.05f
 
@@ -84,7 +84,7 @@ static const char* TEXTS[] = {
 
 static Vector2 TEXT_SIZES[LEN_TEXTS];
 
-static Color COLORS[LEN_TEXTS] = {
+static const Color COLORS[LEN_TEXTS] = {
     BEIGE,
     LIGHTGRAY,
     GRAY,
