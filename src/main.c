@@ -1,64 +1,39 @@
 #include "raylib.h"
 
-#include <assert.h>
-#include <stdbool.h>
 #include <stdint.h>
 
 typedef uint8_t  u8;
 typedef uint32_t u32;
 typedef int32_t  i32;
-typedef float    f32;
+
+typedef float f32;
 
 typedef struct {
-    u8 x, y;
-} Vector2u;
-
-typedef enum {
-    DIR_LEFT = 0,
-    DIR_RIGHT,
-    DIR_DOWN,
-    DIR_UP,
-} Dir;
-
-#define MOVES ((void (*[])(void)){move_left, move_right, move_down, move_up})
-
-typedef struct {
-    Vector2u from, to;
-    u8       k;
-    u8       sequence;
-} Transition;
-
-typedef struct {
-    Vector2u position;
-    u8       k;
-    u8       sequence;
-} Block;
-
-#define BACKGROUND BLACK
+    Vector2 position;
+    u8      value;
+    bool    alive;
+} Cell;
 
 #define SCREEN_X 480
 #define SCREEN_Y SCREEN_X
-
-#define ROWS 4
-#define COLS ROWS
 
 #define RECT_X (SCREEN_X / COLS)
 #define RECT_Y (SCREEN_Y / ROWS)
 
 #define RECT_BORDER 0.05f
 
+#define ROWS 4
+#define COLS 4
+
+#define BACKGROUND BLACK
+
+#define TRANSITION 0.5f
+
 #define TEXT_Y       40
 #define TEXT_SPACING (TEXT_Y / 10)
 
-#define FPS_X 10
-#define FPS_Y FPS_X
-
-#define ANIMATION_STEP (1.0f / 4.0f)
-
-static u8   BOARD[ROWS][COLS] = {0};
-static Font FONT;
-static bool CAN_INJECT = false;
-static u8   NO_MOVE = 0;
+#define FPS_X 2
+#define FPS_Y 0
 
 static const char* TEXTS[] = {
     "2",
@@ -81,8 +56,6 @@ static const char* TEXTS[] = {
 };
 
 #define LEN_TEXTS (sizeof(TEXTS) / sizeof(TEXTS[0]))
-
-static Vector2 TEXT_SIZES[LEN_TEXTS];
 
 static const Color COLORS[LEN_TEXTS] = {
     BEIGE,
@@ -108,287 +81,286 @@ static const Color COLORS[LEN_TEXTS] = {
     // DARKBROWN,
 };
 
-#define CAP_TRANSITIONS (1 << 6)
-static Transition TRANSITIONS[CAP_TRANSITIONS];
-static u32        LEN_TRANSITIONS = 0;
+static void random_block(Cell cells[][COLS]) {
+    u32 available = 0;
+    for (u32 y = 0; y < ROWS; ++y) {
+        for (u32 x = 0; x < COLS; ++x) {
+            if (!cells[y][x].alive) {
+                ++available;
+            }
+        }
+    }
 
-#define CAP_BLOCKS (1 << 6)
-static Block BLOCKS[CAP_BLOCKS];
-static u32   LEN_BLOCKS = 0;
+    if (available == 0) {
+        return;
+    }
 
-#define CAP_DIRS (1 << 6)
-static Dir DIRS[CAP_DIRS];
-static u32 LEN_DIRS;
+    u32 index = (u32)GetRandomValue(0, (i32)(available - 1));
 
-static void push_transition(const Vector2u from, const Vector2u to, const u8 k, const u8 sequence) {
-    assert(LEN_TRANSITIONS < CAP_TRANSITIONS);
-    TRANSITIONS[LEN_TRANSITIONS++] = (Transition){from, to, k, sequence};
+    for (u32 y = 0; y < ROWS; ++y) {
+        for (u32 x = 0; x < COLS; ++x) {
+            if (cells[y][x].alive) {
+                continue;
+            }
+            if (index == 0) {
+                cells[y][x] = (Cell){
+                    .position =
+                        (Vector2){
+                            .x = (f32)x,
+                            .y = (f32)y,
+                        },
+                    .value = (u8)GetRandomValue(0, 1),
+                    .alive = true,
+                };
+                return;
+            }
+            --index;
+        }
+    }
 }
 
-static void push_block(const Vector2u position, const u8 k, const u8 sequence) {
-    assert(LEN_BLOCKS < CAP_BLOCKS);
-    BLOCKS[LEN_BLOCKS++] = (Block){position, k, sequence};
+static bool up(Cell cells[][COLS]) {
+    bool change = false;
+
+    for (u32 x = 0; x < COLS; ++x) {
+        u32 end = 0;
+
+        if (cells[end][x].alive) {
+            ++end;
+        }
+
+        for (u32 y = end; y < ROWS; ++y) {
+            if (!cells[y][x].alive) {
+                continue;
+            }
+            if ((end != 0) && (cells[end - 1][x].value == cells[y][x].value)) {
+                cells[end - 1][x].position = cells[y][x].position;
+                ++cells[end - 1][x].value;
+                cells[y][x].alive = false;
+                change = true;
+            } else if (y == end) {
+                ++end;
+            } else {
+                cells[end++][x] = cells[y][x];
+                cells[y][x].alive = false;
+                change = true;
+            }
+        }
+    }
+
+    return change;
 }
 
-static void push_dir(const Dir dir) {
-    assert(LEN_DIRS < CAP_DIRS);
-    DIRS[LEN_DIRS++] = dir;
+static bool down(Cell cells[][COLS]) {
+    bool change = false;
+
+    for (u32 x = 0; x < COLS; ++x) {
+        u32 end = ROWS;
+
+        if (cells[end - 1][x].alive) {
+            --end;
+        }
+
+        for (u32 y = end; 0 < y; --y) {
+            if (!cells[y - 1][x].alive) {
+                continue;
+            }
+            if ((end != ROWS) && (cells[end][x].value == cells[y - 1][x].value)) {
+                cells[end][x].position = cells[y - 1][x].position;
+                ++cells[end][x].value;
+                cells[y - 1][x].alive = false;
+                change = true;
+            } else if (y == end) {
+                --end;
+            } else {
+                cells[--end][x] = cells[y - 1][x];
+                cells[y - 1][x].alive = false;
+                change = true;
+            }
+        }
+    }
+
+    return change;
 }
 
-static Dir pop_dir(void) {
-    assert(0 < LEN_DIRS);
-    return DIRS[--LEN_DIRS];
+static bool left(Cell cells[][COLS]) {
+    bool change = false;
+
+    for (u32 y = 0; y < ROWS; ++y) {
+        u32 end = 0;
+
+        if (cells[y][end].alive) {
+            ++end;
+        }
+
+        for (u32 x = end; x < COLS; ++x) {
+            if (!cells[y][x].alive) {
+                continue;
+            }
+            if ((end != 0) && (cells[y][end - 1].value == cells[y][x].value)) {
+                cells[y][end - 1].position = cells[y][x].position;
+                ++cells[y][end - 1].value;
+                cells[y][x].alive = false;
+                change = true;
+            } else if (x == end) {
+                ++end;
+            } else {
+                cells[y][end++] = cells[y][x];
+                cells[y][x].alive = false;
+                change = true;
+            }
+        }
+    }
+
+    return change;
 }
 
-static void push_keys(void) {
+static bool right(Cell cells[][COLS]) {
+    bool change = false;
+
+    for (u32 y = 0; y < ROWS; ++y) {
+        u32 end = COLS;
+
+        if (cells[y][end - 1].alive) {
+            --end;
+        }
+
+        for (u32 x = end; 0 < x; --x) {
+            if (!cells[y][x - 1].alive) {
+                continue;
+            }
+            if ((end != COLS) && (cells[y][end].value == cells[y][x - 1].value)) {
+                cells[y][end].position = cells[y][x - 1].position;
+                ++cells[y][end].value;
+                cells[y][x - 1].alive = false;
+                change = true;
+            } else if (x == end) {
+                --end;
+            } else {
+                cells[y][--end] = cells[y][x - 1];
+                cells[y][x - 1].alive = false;
+                change = true;
+            }
+        }
+    }
+
+    return change;
+}
+
+static bool is_done(Cell cells[][COLS]) {
+    for (u32 y = 0; y < ROWS; ++y) {
+        for (u32 x = 0; x < COLS; ++x) {
+            if (!cells[y][x].alive) {
+                return false;
+            }
+        }
+    }
+
+    for (u32 y = 0; y < ROWS; ++y) {
+        for (u32 x = 1; x < COLS; ++x) {
+            if (cells[y][x - 1].value == cells[y][x].value) {
+                return false;
+            }
+        }
+    }
+
+    for (u32 x = 0; x < COLS; ++x) {
+        for (u32 y = 1; y < ROWS; ++y) {
+            if (cells[y - 1][x].value == cells[y][x].value) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+static bool update(Cell cells[][COLS]) {
+    bool pressed = false;
+    bool change = false;
+
     for (;;) {
         const i32 key = GetKeyPressed();
         if (key == 0) {
             break;
         }
 
-        switch (key) {
-        case KEY_A: {
-            push_dir(DIR_LEFT);
-            break;
-        }
-        case KEY_D: {
-            push_dir(DIR_RIGHT);
-            break;
-        }
-        case KEY_S: {
-            push_dir(DIR_DOWN);
-            break;
-        }
-        case KEY_W: {
-            push_dir(DIR_UP);
-            break;
-        }
-        default: {
-        }
+        pressed = true;
+
+        if (key == KEY_W) {
+            change |= up(cells);
+        } else if (key == KEY_S) {
+            change |= down(cells);
+        } else if (key == KEY_A) {
+            change |= left(cells);
+        } else if (key == KEY_D) {
+            change |= right(cells);
         }
     }
-}
 
-static void slide_row(u8 row[COLS], u8 sequence) {
-    u8 j = 0;
-
-    for (u8 i = 0; i < COLS; ++i) {
-        if (row[i] == 0) {
-            continue;
-        }
-
-        while ((row[j] != 0) && (j < i)) {
-            ++j;
-        }
-
-        if (i == j) {
-            push_block((Vector2u){i, 0}, row[i], sequence);
-            continue;
-        }
-
-        assert(row[j] == 0);
-
-        push_transition((Vector2u){i, 0}, (Vector2u){j, 0}, row[i], sequence);
-
-        row[j++] = row[i];
-        row[i] = 0;
-
-        CAN_INJECT = true;
-    }
-}
-
-static void promote_row(u8 row[COLS], u8 sequence) {
-    for (u8 i = 0; i < COLS; ++i) {
-        if (row[i] == 0) {
-            break;
-        }
-
-        if ((i == 0) || (row[i - 1] != row[i])) {
-            push_block((Vector2u){i, 0}, row[i], sequence);
-            continue;
-        }
-
-        push_transition((Vector2u){i, 0}, (Vector2u){i - 1, 0}, row[i], sequence);
-
-        ++row[i - 1];
-        row[i] = 0;
-
-        CAN_INJECT = true;
-    }
-}
-
-static void move_row(u8 row[COLS]) {
-    slide_row(row, 0);
-    promote_row(row, 1);
-    slide_row(row, 2);
-}
-
-static void move_right(void) {
-    for (u8 i = 0; i < ROWS; ++i) {
-        u8 row[COLS];
-
-        for (u8 j = 0; j < COLS; ++j) {
-            row[COLS - (j + 1)] = BOARD[i][j];
-        }
-
-        const u32 prev_transition = LEN_TRANSITIONS;
-        const u32 prev_block = LEN_BLOCKS;
-        move_row(row);
-        for (u32 k = prev_transition; k < LEN_TRANSITIONS; ++k) {
-            TRANSITIONS[k].from.x = COLS - (TRANSITIONS[k].from.x + 1);
-            TRANSITIONS[k].from.y = i;
-            TRANSITIONS[k].to.x = COLS - (TRANSITIONS[k].to.x + 1);
-            TRANSITIONS[k].to.y = i;
-        }
-        for (u32 k = prev_block; k < LEN_BLOCKS; ++k) {
-            BLOCKS[k].position.x = COLS - (BLOCKS[k].position.x + 1);
-            BLOCKS[k].position.y = i;
-        }
-
-        for (u8 j = 0; j < COLS; ++j) {
-            BOARD[i][j] = row[COLS - (j + 1)];
+    if (pressed) {
+        if (change) {
+            random_block(cells);
+        } else if (is_done(cells)) {
+            return false;
         }
     }
-}
 
-static void move_left(void) {
-    for (u8 i = 0; i < ROWS; ++i) {
-        const u32 prev_transition = LEN_TRANSITIONS;
-        const u32 prev_block = LEN_BLOCKS;
-        move_row(BOARD[i]);
-        for (u32 k = prev_transition; k < LEN_TRANSITIONS; ++k) {
-            TRANSITIONS[k].from.y = i;
-            TRANSITIONS[k].to.y = i;
-        }
-        for (u32 k = prev_block; k < LEN_BLOCKS; ++k) {
-            BLOCKS[k].position.y = i;
-        }
-    }
-}
-
-static void move_down(void) {
-    for (u8 j = 0; j < COLS; ++j) {
-        u8 col[ROWS];
-
-        for (u8 i = 0; i < ROWS; ++i) {
-            col[ROWS - (i + 1)] = BOARD[i][j];
-        }
-
-        const u32 prev_transition = LEN_TRANSITIONS;
-        const u32 prev_block = LEN_BLOCKS;
-        move_row(col);
-        for (u32 k = prev_transition; k < LEN_TRANSITIONS; ++k) {
-            TRANSITIONS[k].from.y = ROWS - (TRANSITIONS[k].from.x + 1);
-            TRANSITIONS[k].from.x = j;
-            TRANSITIONS[k].to.y = ROWS - (TRANSITIONS[k].to.x + 1);
-            TRANSITIONS[k].to.x = j;
-        }
-        for (u32 k = prev_block; k < LEN_BLOCKS; ++k) {
-            BLOCKS[k].position.y = ROWS - (BLOCKS[k].position.x + 1);
-            BLOCKS[k].position.x = j;
-        }
-
-        for (u8 i = 0; i < ROWS; ++i) {
-            BOARD[i][j] = col[ROWS - (i + 1)];
-        }
-    }
-}
-
-static void move_up(void) {
-    for (u8 j = 0; j < COLS; ++j) {
-        u8 col[ROWS];
-
-        for (u8 i = 0; i < ROWS; ++i) {
-            col[i] = BOARD[i][j];
-        }
-
-        const u32 prev_transition = LEN_TRANSITIONS;
-        const u32 prev_block = LEN_BLOCKS;
-        move_row(col);
-        for (u32 k = prev_transition; k < LEN_TRANSITIONS; ++k) {
-            TRANSITIONS[k].from.y = TRANSITIONS[k].from.x;
-            TRANSITIONS[k].from.x = j;
-            TRANSITIONS[k].to.y = TRANSITIONS[k].to.x;
-            TRANSITIONS[k].to.x = j;
-        }
-        for (u32 k = prev_block; k < LEN_BLOCKS; ++k) {
-            BLOCKS[k].position.y = BLOCKS[k].position.x;
-            BLOCKS[k].position.x = j;
-        }
-
-        for (u8 i = 0; i < ROWS; ++i) {
-            BOARD[i][j] = col[i];
-        }
-    }
-}
-
-static void pop_move(void) {
-    if (LEN_DIRS == 0) {
-        return;
-    }
-
-    Dir dir = pop_dir();
-    MOVES[dir]();
-
-    if (LEN_TRANSITIONS == 0) {
-        NO_MOVE |= (1u << dir);
-    } else {
-        NO_MOVE = 0;
-    }
-}
-
-static void draw_block(const Vector2 position, const u8 k) {
-    DrawRectangleV(
-        (Vector2){
-            position.x + (RECT_X * (RECT_BORDER / 2.0f)),
-            position.y + (RECT_Y * (RECT_BORDER / 2.0f)),
-        },
-        (Vector2){(RECT_X * (1.0f - RECT_BORDER)), (RECT_Y * (1.0f - RECT_BORDER))},
-        COLORS[k - 1]);
-    DrawTextEx(FONT,
-               TEXTS[k - 1],
-               (Vector2){
-                   position.x + ((RECT_X / 2) - (TEXT_SIZES[k - 1].x / 2)),
-                   position.y + ((RECT_Y / 2) - (TEXT_SIZES[k - 1].y / 2)),
-               },
-               TEXT_Y,
-               TEXT_SPACING,
-               BACKGROUND);
-}
-
-static f32 lerp(const f32 l, const f32 r, const f32 t) {
-    return l + (t * (r - l));
-}
-
-static void draw_transition(const Transition transition, const f32 t) {
-    // NOTE: See `https://blog.bruce-hill.com/6-useful-snippets`.
-    draw_block(
-        (Vector2){
-            lerp((f32)transition.from.x * RECT_X, (f32)transition.to.x * RECT_X, t * t),
-            lerp((f32)transition.from.y * RECT_X, (f32)transition.to.y * RECT_X, t * t),
-        },
-        transition.k);
-}
-
-static void inject_block(void) {
-    Vector2u available[ROWS * COLS];
-
-    u32 count = 0;
-    for (u8 i = 0; i < ROWS; ++i) {
-        for (u8 j = 0; j < COLS; ++j) {
-            if (BOARD[i][j] == 0) {
-                available[count++] = (Vector2u){j, i};
+    for (u32 y = 0; y < ROWS; ++y) {
+        for (u32 x = 0; x < COLS; ++x) {
+            if (!cells[y][x].alive) {
+                continue;
             }
+            cells[y][x].position.x += (((f32)x) - cells[y][x].position.x) * TRANSITION;
+            cells[y][x].position.y += (((f32)y) - cells[y][x].position.y) * TRANSITION;
         }
     }
 
-    if (count == 0) {
-        return;
+    return true;
+}
+
+static void draw(const Font* font, const Vector2* text_sizes, const Cell cells[][COLS]) {
+    BeginDrawing();
+
+    ClearBackground(BACKGROUND);
+
+    for (u32 y = 0; y < ROWS; ++y) {
+        for (u32 x = 0; x < COLS; ++x) {
+            if (!cells[y][x].alive) {
+                continue;
+            }
+
+            const Vector2 position = (Vector2){
+                .x = cells[y][x].position.x * RECT_X,
+                .y = cells[y][x].position.y * RECT_Y,
+            };
+            const u8 value = cells[y][x].value;
+
+            DrawRectangleV(
+                (Vector2){
+                    .x = position.x + (RECT_X * (RECT_BORDER / 2.0f)),
+                    .y = position.y + (RECT_Y * (RECT_BORDER / 2.0f)),
+                },
+                (Vector2){
+                    .x = RECT_X * (1.0f - RECT_BORDER),
+                    .y = RECT_Y * (1.0f - RECT_BORDER),
+                },
+                COLORS[value]);
+            DrawTextEx(*font,
+                       TEXTS[value],
+                       (Vector2){
+                           .x = position.x + ((RECT_X / 2) - (text_sizes[value].x / 2)),
+                           .y = position.y + ((RECT_Y / 2) - (text_sizes[value].y / 2)),
+                       },
+                       TEXT_Y,
+                       TEXT_SPACING,
+                       BACKGROUND);
+        }
     }
 
-    const Vector2u position = available[GetRandomValue(0, (i32)(count - 1))];
-    BOARD[position.y][position.x] = (u8)GetRandomValue(1, 2);
+    DrawFPS(FPS_X, FPS_Y);
+
+    EndDrawing();
 }
 
 i32 main(void) {
@@ -397,95 +369,24 @@ i32 main(void) {
     InitWindow(SCREEN_X, SCREEN_Y, "ray2s");
     SetTargetFPS(60);
 
-    FONT = GetFontDefault();
+    const Font font = GetFontDefault();
+
+    static Vector2 text_sizes[LEN_TEXTS];
 
     for (u32 i = 0; i < LEN_TEXTS; ++i) {
-        TEXT_SIZES[i] = MeasureTextEx(FONT, TEXTS[i], TEXT_Y, TEXT_SPACING);
+        text_sizes[i] = MeasureTextEx(font, TEXTS[i], TEXT_Y, TEXT_SPACING);
     }
 
-    inject_block();
-    inject_block();
+    static Cell cells[ROWS][COLS] = {0};
 
-    f32 t = 0.0f;
-    u8  sequence = 0;
+    random_block(cells);
+    random_block(cells);
 
     while (!WindowShouldClose()) {
-        push_keys();
-
-        if (LEN_TRANSITIONS == 0) {
-            LEN_BLOCKS = 0;
-
-            if (CAN_INJECT) {
-                inject_block();
-                CAN_INJECT = false;
-            }
-
-            pop_move();
-
-            if (LEN_TRANSITIONS != 0) {
-                continue;
-            }
-
-            if (NO_MOVE ==
-                ((1u << DIR_LEFT) | (1u << DIR_RIGHT) | (1u << DIR_DOWN) | (1u << DIR_UP)))
-            {
-                break;
-            }
-
-            BeginDrawing();
-            ClearBackground(BACKGROUND);
-
-            for (u32 i = 0; i < ROWS; ++i) {
-                for (u32 j = 0; j < COLS; ++j) {
-                    if (BOARD[i][j] == 0) {
-                        continue;
-                    }
-                    draw_block((Vector2){(f32)j * RECT_X, (f32)i * RECT_Y}, BOARD[i][j]);
-                }
-            }
-
-            DrawFPS(FPS_X, FPS_Y);
-            EndDrawing();
-
-            continue;
+        if (!update(cells)) {
+            break;
         }
-
-        if (t <= 0.0f) {
-            sequence = 0;
-            t += 1.0f;
-        }
-
-        BeginDrawing();
-        ClearBackground(BACKGROUND);
-
-        for (u32 i = 0; i < LEN_TRANSITIONS; ++i) {
-            if (TRANSITIONS[i].sequence != sequence) {
-                continue;
-            }
-            draw_transition(TRANSITIONS[i], 1.0f - t);
-        }
-        for (u32 i = 0; i < LEN_BLOCKS; ++i) {
-            if (BLOCKS[i].sequence != sequence) {
-                continue;
-            }
-            draw_block(
-                (Vector2){(f32)BLOCKS[i].position.x * RECT_X, (f32)BLOCKS[i].position.y * RECT_Y},
-                BLOCKS[i].k);
-        }
-
-        DrawFPS(FPS_X, FPS_Y);
-        EndDrawing();
-
-        t -= ANIMATION_STEP;
-
-        if (t <= 0.0f) {
-            if (++sequence < 3) {
-                t += 1.0f;
-            } else {
-                LEN_TRANSITIONS = 0;
-                LEN_BLOCKS = 0;
-            }
-        }
+        draw(&font, text_sizes, cells);
     }
 
     CloseWindow();
