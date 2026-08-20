@@ -27,13 +27,15 @@ typedef struct {
 
 #define BACKGROUND BLACK
 
-#define MOVE_FRACTION 0.5f
-
 #define TEXT_Y       40
 #define TEXT_SPACING (TEXT_Y / 10)
 
 #define FPS_X 2
 #define FPS_Y 0
+
+#define MOVE_FRACTION 0.5f
+
+static_assert((0.0f < MOVE_FRACTION) && (MOVE_FRACTION <= 1.0f));
 
 static const char* TEXTS[] = {
     "2",
@@ -104,11 +106,7 @@ static void random_block(Cell cells[][COLS]) {
             }
             if (index == 0) {
                 cells[y][x] = (Cell){
-                    .position =
-                        (Vector2){
-                            .x = (f32)x,
-                            .y = (f32)y,
-                        },
+                    .position = {(f32)x, (f32)y},
                     .value = (u8)GetRandomValue(0, 1),
                     .alive = true,
                 };
@@ -315,26 +313,23 @@ static void draw(const Font* font, const Vector2* text_sizes, const Cell cells[]
             }
 
             const Vector2 position = (Vector2){
-                .x = cells[y][x].position.x * RECT_X,
-                .y = cells[y][x].position.y * RECT_Y,
+                cells[y][x].position.x * RECT_X,
+                cells[y][x].position.y * RECT_Y,
             };
             const u8 value = cells[y][x].value;
 
             DrawRectangleV(
                 (Vector2){
-                    .x = position.x + (RECT_X * (RECT_BORDER / 2.0f)),
-                    .y = position.y + (RECT_Y * (RECT_BORDER / 2.0f)),
+                    position.x + (RECT_X * (RECT_BORDER / 2.0f)),
+                    position.y + (RECT_Y * (RECT_BORDER / 2.0f)),
                 },
-                (Vector2){
-                    .x = RECT_X * (1.0f - RECT_BORDER),
-                    .y = RECT_Y * (1.0f - RECT_BORDER),
-                },
+                (Vector2){RECT_X * (1.0f - RECT_BORDER), RECT_Y * (1.0f - RECT_BORDER)},
                 COLORS[value]);
             DrawTextEx(*font,
                        TEXTS[value],
                        (Vector2){
-                           .x = position.x + ((RECT_X / 2) - (text_sizes[value].x / 2)),
-                           .y = position.y + ((RECT_Y / 2) - (text_sizes[value].y / 2)),
+                           position.x + ((RECT_X / 2) - (text_sizes[value].x / 2)),
+                           position.y + ((RECT_Y / 2) - (text_sizes[value].y / 2)),
                        },
                        TEXT_Y,
                        TEXT_SPACING,
