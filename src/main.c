@@ -14,16 +14,16 @@ typedef struct {
     bool    alive;
 } Cell;
 
-#define SCREEN_X 480
-#define SCREEN_Y SCREEN_X
-
-#define RECT_X (SCREEN_X / COLS)
-#define RECT_Y (SCREEN_Y / ROWS)
-
-#define RECT_BORDER 0.05f
+#define RECT_X 120
+#define RECT_Y RECT_X
 
 #define ROWS 4
-#define COLS 4
+#define COLS ROWS
+
+#define SCREEN_X (RECT_X * COLS)
+#define SCREEN_Y (RECT_Y * ROWS)
+
+#define RECT_BORDER 0.05f
 
 #define BACKGROUND BLACK
 
