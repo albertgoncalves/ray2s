@@ -27,7 +27,7 @@ typedef struct {
 
 #define BACKGROUND BLACK
 
-#define TRANSITION 0.5f
+#define MOVE_FRACTION 0.5f
 
 #define TEXT_Y       40
 #define TEXT_SPACING (TEXT_Y / 10)
@@ -295,8 +295,8 @@ static bool update(Cell cells[][COLS]) {
             if (!cells[y][x].alive) {
                 continue;
             }
-            cells[y][x].position.x += (((f32)x) - cells[y][x].position.x) * TRANSITION;
-            cells[y][x].position.y += (((f32)y) - cells[y][x].position.y) * TRANSITION;
+            cells[y][x].position.x += (((f32)x) - cells[y][x].position.x) * MOVE_FRACTION;
+            cells[y][x].position.y += (((f32)y) - cells[y][x].position.y) * MOVE_FRACTION;
         }
     }
 
