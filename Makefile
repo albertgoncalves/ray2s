@@ -15,10 +15,13 @@ FLAGS = \
 	-Lraylib/lib \
 	-march=native \
 	-O3 \
+	-std=c23 \
 	-Werror \
 	-Weverything \
 	-Wno-declaration-after-statement \
+	-Wno-gnu-folding-constant \
 	-Wno-padded \
+	-Wno-pre-c23-compat \
 	-Wno-unsafe-buffer-usage
 
 .PHONY: all run clean
