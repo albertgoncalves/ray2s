@@ -6,6 +6,7 @@ FLAGS = \
 	-lm \
 	-lraylib \
 	-Lraylib/lib \
+	-lX11 \
 	-march=native \
 	-O3 \
 	-std=c23 \
