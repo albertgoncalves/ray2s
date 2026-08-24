@@ -1,14 +1,6 @@
 FLAGS = \
 	-ferror-limit=1 \
-	-fsanitize=address \
-	-fsanitize=bounds \
-	-fsanitize=float-divide-by-zero \
-	-fsanitize=implicit-conversion \
-	-fsanitize=integer \
-	-fsanitize=nullability \
-	-fsanitize=undefined \
 	-fshort-enums \
-	-g \
 	-Iraylib/include \
 	-lGL \
 	-lm \
@@ -24,16 +16,28 @@ FLAGS = \
 	-Wno-padded \
 	-Wno-pre-c23-compat \
 	-Wno-unsafe-buffer-usage
+DEBUG_FLAGS = \
+	-fsanitize=address \
+	-fsanitize=bounds \
+	-fsanitize=float-divide-by-zero \
+	-fsanitize=implicit-conversion \
+	-fsanitize=integer \
+	-fsanitize=nullability \
+	-fsanitize=undefined \
+	-g
 
-.PHONY: all run clean
+.PHONY: all debug release clean
 
-all: bin/main
+all: bin/debug bin/release
 
-run: all
-	./bin/main
+debug: bin/debug
+	./bin/debug
+
+release: bin/release
+	./bin/release
 
 clean:
-	rm bin/main
+	rm -f .ready bin/debug bin/release
 	rmdir bin/
 
 raylib/:
@@ -42,7 +46,15 @@ raylib/:
 raylib/lib/libraylib.a: raylib/
 	./scripts/install.sh
 
-bin/main: raylib/lib/libraylib.a src/main.c
+bin/:
 	mkdir -p bin/
+
+.ready: src/main.c
 	clang-format -i src/main.c
-	mold -run clang $(FLAGS) src/main.c -o bin/main
+	touch .ready
+
+bin/debug: bin/ raylib/lib/libraylib.a .ready
+	mold -run clang $(FLAGS) $(DEBUG_FLAGS) src/main.c -o bin/debug
+
+bin/release: bin/ raylib/lib/libraylib.a .ready
+	mold -run clang $(FLAGS) src/main.c -o bin/release
