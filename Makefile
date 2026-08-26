@@ -48,14 +48,15 @@ raylib/lib/libraylib.a: raylib/
 	./scripts/install.sh
 
 bin/:
-	mkdir -p bin/
+	mkdir bin/
 
 .ready: src/main.c
 	clang-format -i src/main.c
 	touch .ready
 
-bin/debug: bin/ raylib/lib/libraylib.a .ready
+# NOTE: See `https://www.gnu.org/savannah-checkouts/gnu/make/manual/html_node/Prerequisite-Types.html`.
+bin/debug: raylib/lib/libraylib.a .ready | bin/
 	mold -run clang $(FLAGS) $(DEBUG_FLAGS) src/main.c -o bin/debug
 
-bin/release: bin/ raylib/lib/libraylib.a .ready
+bin/release: raylib/lib/libraylib.a .ready | bin/
 	mold -run clang $(FLAGS) src/main.c -o bin/release
